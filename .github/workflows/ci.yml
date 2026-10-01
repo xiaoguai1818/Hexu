@@ -47,8 +47,8 @@ jobs:
       - name: Typecheck, compile, regression, real SQLite faults and pipeline self-tests
         run: |
           set -euo pipefail
-          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
-            --tmpfs /tmp --tmpfs /app/dist -e npm_config_cache=/tmp/npm-cache \
+          docker run --rm --user "$(id -u):$(id -g)" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:mode=1777 --tmpfs /app/dist:mode=1777 -e npm_config_cache=/tmp/npm-cache \
             -e HEXU_SOURCE_SHA -e HEXU_REPORT_DIR=/reports \
             -v "$PWD/ci-results/regression:/reports" hexu-check npm run check \
             2>&1 | tee ci-results/regression/check.log
@@ -106,7 +106,7 @@ jobs:
       - name: Verify bad changes are caught, not hidden by compile errors or skips
         run: |
           set -euo pipefail
-          docker run --rm --network none --read-only --tmpfs /tmp \
+          docker run --rm --user "$(id -u):$(id -g)" --network none --read-only --cap-drop ALL --tmpfs /tmp:mode=1777 \
             -e HEXU_SOURCE_SHA -e HEXU_REPORT_DIR=/reports \
             -v "$PWD/ci-results/mutation:/reports" hexu-check node scripts/mutation.mjs \
             2>&1 | tee ci-results/mutation/check.log
@@ -174,13 +174,7 @@ jobs:
       - name: Fail if any required layer failed, was canceled or skipped
         env:
           REQUIRED_JOB_RESULTS: ${{ toJSON(needs) }}
-        run: |
-          node --input-type=module -e '
-          const jobs=JSON.parse(process.env.REQUIRED_JOB_RESULTS);
-          for(const name of ["regression","deployment","mutation","security"]){
-            if(jobs[name]?.result!=="success")throw new Error(`${name}: ${jobs[name]?.result??"missing"}`);
-          }
-          console.log("Engineering gate passed; product readiness is reported separately and is not implied.");'
+        run: node scripts/quality-gate.mjs
       - name: Retain acceptance coverage map
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

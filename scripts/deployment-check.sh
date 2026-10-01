@@ -6,6 +6,9 @@ cd "$(dirname "$0")/.."
 : "${HEXU_CI_TAG:?unique image tag is required}"
 case "$HEXU_CI_TAG" in *[!a-zA-Z0-9_.-]*|'') echo 'Invalid CI tag' >&2; exit 1;; esac
 project="hexu-ci-${HEXU_CI_TAG,,}"
+HEXU_CI_UID=$(id -u)
+HEXU_CI_GID=$(id -g)
+export HEXU_CI_UID HEXU_CI_GID
 report="$PWD/ci-results/deployment"
 private="$PWD/ci-results/private"
 mkdir -p "$report" "$private"
@@ -43,6 +46,8 @@ docker load -i "$private/runtime.tar" > "$report/image-load.log"
 test "$runtime_id" = "$(docker image inspect --format '{{.Id}}' "hexu-ci-runtime:$HEXU_CI_TAG")"
 rm -f "$private/runtime.tar"
 
+# These template expressions belong to JavaScript, not the shell.
+# shellcheck disable=SC2016
 docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true "hexu-ci-runtime:$HEXU_CI_TAG" node --input-type=module -e '
 import assert from "node:assert/strict";import {existsSync,readFileSync} from "node:fs";
 assert.notEqual(process.getuid(),0);const core=await import("./dist/index.js");assert.equal(typeof core.TaskService,"function");

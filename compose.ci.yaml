@@ -26,6 +26,7 @@ services:
   app-peer:
     <<: *app
   client:
+    user: "${HEXU_CI_UID:?test owner UID}:${HEXU_CI_GID:?test owner GID}"
     image: hexu-ci-check:${HEXU_CI_TAG:?set a unique test tag}
     build:
       context: .

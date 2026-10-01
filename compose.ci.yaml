@@ -1,0 +1,51 @@
+# Disposable compiled-core deployment fixture. No published ports, production credentials, or live Pi.
+services:
+  app: &app
+    image: hexu-ci-fixture:${HEXU_CI_TAG:?set a unique test tag}
+    build:
+      context: .
+      target: ci-deployment-fixture
+    environment:
+      HEXU_CI_FIXTURE: '1'
+      HEXU_SOURCE_SHA: ${HEXU_SOURCE_SHA:?source SHA required}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 256m
+    tmpfs: [/tmp]
+    volumes:
+      - taskdata:/data
+      - ./ci-results/private/credentials.json:/run/hexu-ci/credentials.json:ro
+    networks: [isolated]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  app-peer:
+    <<: *app
+  client:
+    image: hexu-ci-check:${HEXU_CI_TAG:?set a unique test tag}
+    build:
+      context: .
+      target: test
+    environment:
+      HEXU_TEST_URL: http://app:8080
+      HEXU_TEST_PEER_URL: http://app-peer:8080
+      HEXU_SOURCE_SHA: ${HEXU_SOURCE_SHA:?source SHA required}
+      HEXU_REPORT_DIR: /reports
+    volumes:
+      - ./ci-results/deployment:/reports
+      - ./ci-results/private/credentials.json:/run/hexu-ci/credentials.json:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    networks: [isolated]
+    command: [node, scripts/test-runner.mjs, deployment]
+volumes:
+  taskdata:
+networks:
+  isolated:
+    internal: true

@@ -5,6 +5,8 @@ on:
     branches: [main, 'ci/**']
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '37 3 * * 1'
 
 permissions:
   contents: read
@@ -13,9 +15,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  HEXU_SOURCE_SHA: ${{ github.sha }}
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  core:
-    name: Core (${{ matrix.arch }})
+  regression:
+    name: Regression, coverage and storage (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     strategy:
@@ -26,48 +35,157 @@ jobs:
             arch: x64
           - runner: ubuntu-24.04-arm
             arch: arm64
-    defaults:
-      run:
-        shell: bash
     steps:
-      - name: Check out source
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-
-      - name: Build isolated check image
+      - name: Build check image
         run: |
           set -euo pipefail
-          mkdir -p ci-results
-          docker compose build --pull check 2>&1 | tee ci-results/build.log
-
-      - name: Typecheck, build and test
-        id: check
+          mkdir -p ci-results/regression
+          docker build --target test -t hexu-check . 2>&1 | tee ci-results/regression/build.log
+      - name: Typecheck, compile, regression, real SQLite faults and pipeline self-tests
         run: |
           set -euo pipefail
-          docker compose run --rm -T check 2>&1 | tee ci-results/check.log
-
-      - name: Write job summary
-        if: always()
-        env:
-          SOURCE_SHA: ${{ github.sha }}
-          CHECK_OUTCOME: ${{ steps.check.outcome }}
-          CHECK_ARCH: ${{ matrix.arch }}
-        run: |
-          {
-            printf '## Hexu core checks (%s)\n\n' "$CHECK_ARCH"
-            printf 'Source commit: `%s`\n\n' "$SOURCE_SHA"
-            printf 'Check step: **%s**\n\n' "$CHECK_OUTCOME"
-            printf '%s\n' 'Scope: typecheck, build, workflow rules, contracts, SQLite and module boundaries.'
-            printf '%s\n' 'Not covered: live Pi/model calls, remote Host operation, hardware or browser acceptance.'
-            printf '\n%s\n' 'Full output is retained in the check-logs artifact.'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Retain check logs
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp --tmpfs /app/dist -e npm_config_cache=/tmp/npm-cache \
+            -e HEXU_SOURCE_SHA -e HEXU_REPORT_DIR=/reports \
+            -v "$PWD/ci-results/regression:/reports" hexu-check npm run check \
+            2>&1 | tee ci-results/regression/check.log
+      - name: Retain TAP, JUnit, coverage and test inventory
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: check-logs-${{ matrix.arch }}-${{ github.run_attempt }}
-          path: ci-results/*.log
-          if-no-files-found: warn
-          retention-days: 7
+          name: regression-${{ matrix.arch }}-${{ github.run_attempt }}
+          path: ci-results/regression/
+          if-no-files-found: error
+          retention-days: 14
+
+  deployment:
+    name: Compiled-core deployment and recovery (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    env:
+      HEXU_CI_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Deploy disposable compiled core, test HTTP flows and recover data
+        run: bash scripts/deployment-check.sh
+      - name: Retain deployment evidence (never credentials)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deployment-${{ matrix.arch }}-${{ github.run_attempt }}
+          path: ci-results/deployment/
+          if-no-files-found: error
+          retention-days: 14
+
+  mutation:
+    name: Regression effectiveness (mutation sentinels)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build check image
+        run: |
+          set -euo pipefail
+          mkdir -p ci-results/mutation
+          docker build --target test -t hexu-check . 2>&1 | tee ci-results/mutation/build.log
+      - name: Verify bad changes are caught, not hidden by compile errors or skips
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only --tmpfs /tmp \
+            -e HEXU_SOURCE_SHA -e HEXU_REPORT_DIR=/reports \
+            -v "$PWD/ci-results/mutation:/reports" hexu-check node scripts/mutation.mjs \
+            2>&1 | tee ci-results/mutation/check.log
+      - name: Retain mutation baseline and results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mutation-${{ github.run_attempt }}
+          path: ci-results/mutation/
+          if-no-files-found: error
+          retention-days: 14
+
+  security:
+    name: Workflow, deployment scripts and dependency audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Workflow lint and deployment script checks
+        run: |
+          set -euo pipefail
+          mkdir -p ci-results/security
+          GOBIN="$RUNNER_TEMP/hexu-ci-tools" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$RUNNER_TEMP/hexu-ci-tools/actionlint" -color .github/workflows/*.yml 2>&1 | tee ci-results/security/actionlint.log
+          bash -n scripts/deployment-check.sh
+          shellcheck scripts/deployment-check.sh 2>&1 | tee ci-results/security/shellcheck.log
+      - name: Check tracked files for runtime data and secret-like material
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p ci-results/security
+          node scripts/repository-check.mjs | tee ci-results/security/source-safety.json
+      - name: Audit exact locked dependencies (including development tooling)
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p ci-results/security
+          docker build --target test -t hexu-check . 2>&1 | tee ci-results/security/build.log
+          docker run --rm hexu-check npm audit --audit-level=high --json | tee ci-results/security/npm-audit.json
+      - name: Retain security evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: security-${{ github.run_attempt }}
+          path: ci-results/security/
+          if-no-files-found: error
+          retention-days: 14
+
+  quality-gate:
+    name: Quality gate
+    if: always()
+    needs: [regression, deployment, mutation, security]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Publish explicit product acceptance gaps
+        run: |
+          node scripts/readiness.mjs
+          cat ci-results/readiness/readiness.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail if any required layer failed, was canceled or skipped
+        env:
+          REQUIRED_JOB_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node --input-type=module -e '
+          const jobs=JSON.parse(process.env.REQUIRED_JOB_RESULTS);
+          for(const name of ["regression","deployment","mutation","security"]){
+            if(jobs[name]?.result!=="success")throw new Error(`${name}: ${jobs[name]?.result??"missing"}`);
+          }
+          console.log("Engineering gate passed; product readiness is reported separately and is not implied.");'
+      - name: Retain acceptance coverage map
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: readiness-${{ github.run_attempt }}
+          path: ci-results/readiness/
+          if-no-files-found: error
+          retention-days: 14

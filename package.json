@@ -6,10 +6,17 @@
   "type": "module",
   "engines": { "node": ">=22.16.0" },
   "scripts": {
-    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "test": "npm run test:core && npm run test:persistence && npm run test:tooling",
+    "test:core": "node scripts/test-runner.mjs core",
+    "test:persistence": "node scripts/test-runner.mjs persistence",
+    "test:tooling": "node scripts/test-runner.mjs tooling",
+    "test:deployment": "node scripts/test-runner.mjs deployment",
+    "test:mutation": "node scripts/mutation.mjs",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "check": "npm run typecheck && npm run build && npm test"
+    "check": "npm run typecheck && npm run build && npm test",
+    "readiness": "node scripts/readiness.mjs",
+    "acceptance:product": "node scripts/readiness.mjs --require-product"
   },
   "devDependencies": {
     "@types/node": "22.19.0",

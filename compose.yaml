@@ -9,5 +9,6 @@ services:
     tmpfs:
       - /tmp
       - /app/dist
+      - /app/ci-results
     environment:
       npm_config_cache: /tmp/npm-cache

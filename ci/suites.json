@@ -1,0 +1,9 @@
+{
+  "suites": {
+    "core": {"minimum": 48, "required": ["test/workflow.test.ts", "test/contracts.test.ts", "test/regression.test.ts", "test/sqlite.test.ts", "test/architecture.test.ts"]},
+    "persistence": {"minimum": 6, "required": ["test/persistence/concurrency.test.ts", "test/persistence/durability.test.ts"]},
+    "tooling": {"minimum": 5, "required": ["test/quality/pipeline.test.mjs"]},
+    "deployment": {"minimum": 8, "required": ["test/deployment/functions.test.mjs"]}
+  },
+  "coverage": {"lines": 90, "branches": 80, "functions": 90}
+}

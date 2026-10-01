@@ -1,0 +1,27 @@
+{
+  "scope": "Engineering evidence is not full product acceptance. A identifiers refer only to docs/acceptance.md.",
+  "items": [
+    {"id":"A01","level":"not_implemented","missing":"Web login and real user-to-Pi workflow","tests":[]},
+    {"id":"A02","level":"core_only","missing":"real Pi discussion and enforced no-write runtime","tests":["test/workflow.test.ts","test/deployment/functions.test.mjs"]},
+    {"id":"A03","level":"not_implemented","missing":"project planning and dependency execution","tests":[]},
+    {"id":"A04","level":"core_only","missing":"real user handoff and Pi consuming context","tests":["test/regression.test.ts"]},
+    {"id":"A05","level":"core_only","missing":"production identity and browser authorization","tests":["test/deployment/functions.test.mjs"]},
+    {"id":"A06","level":"not_implemented","missing":"shared expert configuration and real project resource isolation","tests":[]},
+    {"id":"A07","level":"core_only","missing":"real worker continuing after browser disconnect","tests":["test/persistence/durability.test.ts"]},
+    {"id":"A08","level":"not_implemented","missing":"registered engineering workstation","tests":[]},
+    {"id":"A09","level":"not_implemented","missing":"actual workspace and uncommitted-change protection","tests":[]},
+    {"id":"A10","level":"core_only","missing":"real Host interruption and reconciliation","tests":["test/persistence/durability.test.ts"]},
+    {"id":"A11","level":"not_implemented","missing":"physical operator handoff","tests":[]},
+    {"id":"A12","level":"core_only","missing":"actual process cancellation and final usage settlement","tests":["test/deployment/functions.test.mjs"]},
+    {"id":"A13","level":"not_implemented","missing":"model routing and real usage","tests":[]},
+    {"id":"A14","level":"not_implemented","missing":"budget and idempotent usage ledger","tests":[]},
+    {"id":"A15","level":"core_only","missing":"Web summary and verified delivery artifacts","tests":["test/deployment/functions.test.mjs"]},
+    {"id":"A16","level":"core_only","missing":"production review interaction","tests":["test/deployment/functions.test.mjs"]},
+    {"id":"A17","level":"not_implemented","missing":"approved method feedback and outcome evaluation","tests":[]},
+    {"id":"A18","level":"core_only","missing":"real interchangeable models and environments","tests":["test/architecture.test.ts","test/regression.test.ts"]},
+    {"id":"A19","level":"core_only","missing":"real platform Pi without development Host","tests":["test/contracts.test.ts"]},
+    {"id":"A20","level":"core_only","missing":"real skill switch and code delivery","tests":["test/deployment/functions.test.mjs"]},
+    {"id":"A21","level":"core_only","missing":"Web rework with actual Pi continuation","tests":["test/deployment/functions.test.mjs"]},
+    {"id":"A22","level":"core_only","missing":"production multi-user Web collaboration","tests":["test/deployment/functions.test.mjs"]}
+  ]
+}

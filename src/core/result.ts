@@ -3,6 +3,7 @@ import type {Stage} from './stage-plan.ts';
 import type {RunResult} from './task.ts';
 
 export function normalizeResult(stage: Stage, result: RunResult): RunResult {
+  if (stage !== 'discussion' && stage !== 'development') throw new DomainError('INVALID_INPUT');
   if (!result || typeof result !== 'object' || Array.isArray(result)) throw new DomainError('INVALID_INPUT');
   const keys = stage === 'discussion' ? ['text'] : ['summary', 'verification', 'artifacts', 'unresolved'];
   if (Object.keys(result).some(k => !keys.includes(k))) throw new DomainError('INVALID_INPUT');

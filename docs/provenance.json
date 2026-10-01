@@ -1,0 +1,20 @@
+{
+  "approved_name": "Hexu",
+  "date": "2026-10-01",
+  "copied_documents": [
+    {
+      "source": "Relayboard/docs/reassessment/01-业务共识.md",
+      "source_sha256": "a355ceb7e216e5db197d9ce53d24ef99cb8685e11a96bd7501559811085e730a",
+      "destination": "docs/product.md"
+    },
+    {
+      "source": "Relayboard/docs/reassessment/03-重构交接与验收.md",
+      "source_sha256": "b9d0fc59aa3142f9b343b952b808b5888267a700c67ebbbadbb74c25e39a95d1",
+      "destination": "docs/acceptance.md"
+    }
+  ],
+  "legacy_manifest_sha256": "61137b53b8785e3602fa58fa62172295da18d7e3e12704e340f181a235d46140",
+  "legacy_index_sha256": "2031b3added2e67e57de81d8212eb6a3e0d7060f841ccbeee07453beaa28b764",
+  "legacy_source_files": 281,
+  "legacy_code_copied": false
+}

@@ -1,0 +1,73 @@
+name: Hexu CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Build isolated check image
+        run: |
+          set -euo pipefail
+          mkdir -p ci-results
+          docker compose build --pull check 2>&1 | tee ci-results/build.log
+
+      - name: Typecheck, build and test
+        id: check
+        run: |
+          set -euo pipefail
+          docker compose run --rm -T check 2>&1 | tee ci-results/check.log
+
+      - name: Write job summary
+        if: always()
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          CHECK_OUTCOME: ${{ steps.check.outcome }}
+          CHECK_ARCH: ${{ matrix.arch }}
+        run: |
+          {
+            printf '## Hexu core checks (%s)\n\n' "$CHECK_ARCH"
+            printf 'Source commit: `%s`\n\n' "$SOURCE_SHA"
+            printf 'Check step: **%s**\n\n' "$CHECK_OUTCOME"
+            printf '%s\n' 'Scope: typecheck, build, workflow rules, contracts, SQLite and module boundaries.'
+            printf '%s\n' 'Not covered: live Pi/model calls, remote Host operation, hardware or browser acceptance.'
+            printf '\n%s\n' 'Full output is retained in the check-logs artifact.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain check logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: check-logs-${{ matrix.arch }}-${{ github.run_attempt }}
+          path: ci-results/*.log
+          if-no-files-found: warn
+          retention-days: 7

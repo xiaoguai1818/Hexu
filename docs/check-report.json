@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-01",
+  "scope": "supplementary_isolated_linux_core_checks_not_mac_docker_or_product_acceptance",
+  "runtime": "Node.js v22.16.0",
+  "typecheck_toolchain": {"typescript": "5.8.3", "node_types": "22.19.7", "matches_lockfile": false},
+  "test_command": "node --experimental-strip-types --test test/architecture.test.ts test/contracts.test.ts test/sqlite.test.ts test/workflow.test.ts",
+  "tests": {"total": 33, "passed": 33, "failed": 0, "skipped": 0},
+  "typecheck": "passed_in_supplementary_environment",
+  "build": "passed_in_supplementary_environment",
+  "mac_docker": "not_run_no_available_runtime_found",
+  "live_pi_and_hosts": "not_run",
+  "manifest_algorithm": "sha256(json.dumps(sorted(path_sha_pairs),ensure_ascii=False).encode())",
+  "manifest_sha256": "83d2e517eaea0fca7064e8ff58ea6b3048a998ec04d07d472aa93993fe39cffa",
+  "validated_files": {
+    "skills/development/SKILL.md": "57915a56aead16aad19e0d5aefc5000dcf7447118f02614a0cd97d12852d618d",
+    "skills/requirements/SKILL.md": "708f94b47dfc3fb79c1277f63af109573fdc7e33f79c56b7a33f1690bcdef714",
+    "src/adapters/sqlite/task-repository.ts": "4b26ca3fc8239dedc91acf370a5ebc9cbbc15d427427e5877456ac724a66b64b",
+    "src/application/run-service.ts": "4f65f05052ba5067aff6a10a4c8e36e146db3d1f2023a6f31808fca39265d969",
+    "src/application/task-service.ts": "138e155a182c35d5024ef88651b5cc70be1532c86cb3e0c97b59bae7078fa0ca",
+    "src/core/errors.ts": "fe56fe60631284e94d038c8f9a1365f9aeda9ec4d0e34d51c8f0baf16410b494",
+    "src/core/result.ts": "3eb59f4c32b814515f1a64a0cb43e5c3345c0bdebdb9ea342695bcceed3a8e33",
+    "src/core/stage-plan.ts": "e5307cac9253df04202ce398d5a3f48db6664f6d5d991921ca5043cfceee94b2",
+    "src/core/task.ts": "cfeb77e032eb46ebebca960f87ccb340ab989b51c25da6443fddab64bd4f46d9",
+    "src/index.ts": "159a5434be36fade6c39a9dd087c0ba7bf79569a2d7f0737c4e4ad8b1221f2aa",
+    "src/ports/membership-directory.ts": "e9eca946a8abddd819b32424aea120c001bbd5a56e80445d163825e0869a9109",
+    "src/ports/task-repository.ts": "a59b91e15a07aa599adc70b721e607fee0bb1ee7100e25670f0d85cd07d6d836",
+    "test/architecture.test.ts": "771a85ad8088bbedb70a6e22567eb154695742f32b60c0c38816b673efcb2432",
+    "test/contracts.test.ts": "bf4bc7bb5c39cf5d40726fa36a1a7961df3760f0089ecc1386e4278907d6f6f4",
+    "test/sqlite.test.ts": "d6d4e84744d65391b32e368f491f5155fe625f9846d595b7a943f97c7bd5e2ee",
+    "test/support.ts": "61a77b03df74a0eb0793c5b2cd2188284775d9b08c1f75ccd9b756012927d987",
+    "test/workflow.test.ts": "0819beb8d2375f8b703df80b3fb7ae3b77062e48f12406b1117d76aa3fa8f5d0"
+  }
+}

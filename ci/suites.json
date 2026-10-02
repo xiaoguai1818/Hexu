@@ -1,10 +1,10 @@
 {
   "suites": {
-    "core": {"minimum": 96, "required": ["test/workspace.test.ts", "test/web-http.test.ts", "test/regression/backup.test.ts", "test/public-api.test.ts", "test/workflow.test.ts", "test/contracts.test.ts", "test/regression.test.ts", "test/regression/snapshot.test.ts", "test/sqlite.test.ts", "test/architecture.test.ts"]},
-    "persistence": {"minimum": 6, "required": ["test/persistence/concurrency.test.ts", "test/persistence/durability.test.ts"]},
+    "core": {"minimum": 98, "required": ["test/sqlite-busy.test.ts", "test/workspace.test.ts", "test/web-http.test.ts", "test/regression/backup.test.ts", "test/public-api.test.ts", "test/workflow.test.ts", "test/contracts.test.ts", "test/regression.test.ts", "test/regression/snapshot.test.ts", "test/sqlite.test.ts", "test/architecture.test.ts"]},
+    "persistence": {"minimum": 7, "required": ["test/persistence/concurrency.test.ts", "test/persistence/durability.test.ts"]},
     "tooling": {"minimum": 14, "required": ["test/quality/browser-report.test.mjs", "test/quality/coverage.test.mjs", "test/quality/pipeline.test.mjs", "test/quality/gates.test.mjs"]},
     "deployment": {"minimum": 10, "required": ["test/deployment/functions.test.mjs"]},
-    "browser": {"minimum": 9, "required": ["test/browser/workspace.spec.mjs"]}
+    "browser": {"minimum": 10, "required": ["test/browser/workspace.spec.mjs"]}
   },
   "coverage": {"lines": 90, "branches": 80, "functions": 90}
 }

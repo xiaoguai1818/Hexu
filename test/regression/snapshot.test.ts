@@ -4,6 +4,47 @@ import {assertTaskSnapshot} from '../../src/core/snapshot.ts';
 import {fixture,inReview} from '../support.ts';
 import type {Task} from '../../src/core/task.ts';
 
+for (const state of ['queued','developing','review','done','blocked','canceled'] as const) {
+  test(`snapshot lifecycle: ${state} cannot exist without supporting work`, () => {
+    const task = fixture().task;
+    task.state = state;
+    assert.throws(() => assertTaskSnapshot(task), {code:'CORRUPT_SNAPSHOT'});
+  });
+}
+for (const field of ['startedAt','finishedAt'] as const) {
+  test(`snapshot lifecycle: completed delivery needs ${field}`, () => {
+    const task = inReview(fixture()); delete task.runs[0]![field];
+    assert.throws(() => assertTaskSnapshot(task), {code:'CORRUPT_SNAPSHOT'});
+  });
+}
+test('snapshot lifecycle: incomplete work cannot carry successful delivery evidence', () => {
+  const task = inReview(fixture()); task.state='blocked';
+  task.runs[0]!.status='failed'; task.runs[0]!.reason='failed';
+  assert.throws(() => assertTaskSnapshot(task), {code:'CORRUPT_SNAPSHOT'});
+});
+test('snapshot lifecycle: completed task needs a human acceptance record', () => {
+  const task = inReview(fixture()); task.state='done';
+  assert.throws(() => assertTaskSnapshot(task), {code:'CORRUPT_SNAPSHOT'});
+});
+test('snapshot lifecycle: duplicate comment identifiers are not accepted', () => {
+  const task = inReview(fixture()); task.comments.push(structuredClone(task.comments[0]!));
+  assert.throws(() => assertTaskSnapshot(task), {code:'CORRUPT_SNAPSHOT'});
+});
+test('snapshot lifecycle: legitimate failure, interruption, rework and acceptance remain readable', () => {
+  for (const outcome of ['failed','interrupted','accepted','rework'] as const) {
+    const f=fixture(); let task=f.app.queue('owner',f.task.id,1,{scope:'scope',environmentId:'dev'});
+    const run=task.runs[0]!; task=f.worker.start(task.id,run.id);
+    if(outcome==='failed') task=f.worker.fail(task.id,run.id,'tool unavailable');
+    else if(outcome==='interrupted') task=f.worker.interrupt(task.id,run.id,'connection lost');
+    else {
+      task=f.worker.finish(task.id,run.id,{summary:'result',verification:'fixture only',artifacts:[{name:'report',reference:'fixture:report'}],unresolved:[]});
+      task=f.app.review('reviewer',task.id,task.version,{body:'reviewed',intent:outcome==='accepted'?'accept':'discuss'});
+      task=f.app.comment('member',task.id,task.version,'retained after review');
+    }
+    assertTaskSnapshot(task);
+  }
+});
+
 const mutations:Record<string,(task:Task)=>void>={
   'missing title':t=>{t.title='';},
   'invalid task id':t=>{t.id='../private';},

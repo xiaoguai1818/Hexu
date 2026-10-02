@@ -60,12 +60,14 @@ console.log("Runtime artifact: compiled code and skills load as non-root without
 "${compose[@]}" run --rm -T client node test/deployment/lifecycle.mjs prepare | tee "$report/lifecycle.log"
 
 # Abrupt process loss: data must survive; state recovery must not invent a rerun.
-"${compose[@]}" kill -s SIGKILL app app-peer >> "$report/lifecycle.log" 2>&1
-"${compose[@]}" up -d --wait --wait-timeout 90 app app-peer >> "$report/lifecycle.log" 2>&1
-"${compose[@]}" run --rm -T client node test/deployment/lifecycle.mjs verify >> "$report/lifecycle.log" 2>&1
-# Recreate container from the same artifact while preserving the volume.
-"${compose[@]}" up -d --force-recreate --wait --wait-timeout 90 app app-peer >> "$report/lifecycle.log" 2>&1
-"${compose[@]}" run --rm -T client node test/deployment/lifecycle.mjs verify >> "$report/lifecycle.log" 2>&1
+{
+  "${compose[@]}" kill -s SIGKILL app app-peer
+  "${compose[@]}" up -d --wait --wait-timeout 90 app app-peer
+  "${compose[@]}" run --rm -T client node test/deployment/lifecycle.mjs verify
+  # Recreate container from the same artifact while preserving the volume.
+  "${compose[@]}" up -d --force-recreate --wait --wait-timeout 90 app app-peer
+  "${compose[@]}" run --rm -T client node test/deployment/lifecycle.mjs verify
+} >> "$report/lifecycle.log" 2>&1
 
 # Consistent offline backup, destroy the CI volume, restore into a brand-new volume.
 "${compose[@]}" stop app app-peer >> "$report/lifecycle.log" 2>&1

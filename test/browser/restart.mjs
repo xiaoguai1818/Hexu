@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync} from 'node:fs';
-const origin=process.env.HEXU_TEST_URL,file='/test-private/restart-session.json';
+import {join} from 'node:path';
+const privateDirectory=process.env.HEXU_TEST_PRIVATE_DIR??'/test-private';
+const origin=process.env.HEXU_TEST_URL,file=join(privateDirectory,'restart-session.json');
 if(process.argv[2]==='prepare'){
-  const accounts=JSON.parse(readFileSync('/test-private/accounts.json','utf8'));
+  const accounts=JSON.parse(readFileSync(join(privateDirectory,'accounts.json'),'utf8'));
   const response=await fetch(origin+'/api/login',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({username:'owner',password:accounts.owner})});assert.equal(response.status,200);
   const session=await response.json(),cookie=response.headers.get('set-cookie').split(';')[0];
   const send=async(path,body)=>{const result=await fetch(origin+path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',Cookie:cookie,'X-Hexu-CSRF':session.csrf},body:JSON.stringify(body)});assert.ok(result.ok);return result.json();};

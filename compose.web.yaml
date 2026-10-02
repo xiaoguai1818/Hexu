@@ -1,0 +1,26 @@
+# Local collaboration preview only. Public/enterprise rollout needs HTTPS and review.
+name: hexu-preview
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    ports:
+      - "127.0.0.1:${HEXU_WEB_PORT:-18810}:8080"
+    environment:
+      HEXU_PUBLIC_ORIGIN: "http://localhost:${HEXU_WEB_PORT:-18810}"
+      HEXU_ALLOW_INSECURE_HTTP: '1'
+    volumes: [workspace:/data]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    pids_limit: 128
+    mem_limit: 512m
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+volumes:
+  workspace:

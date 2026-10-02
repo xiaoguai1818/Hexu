@@ -136,6 +136,8 @@ jobs:
           bash -n scripts/deployment-check.sh
           bash -n scripts/web-check.sh
           shellcheck scripts/deployment-check.sh scripts/web-check.sh 2>&1 | tee ci-results/security/shellcheck.log
+          docker compose -f compose.web.yaml config --quiet
+          for file in web/*.js bin/*.mjs scripts/*.mjs; do node --check "$file"; done
       - name: Check tracked files for runtime data and secret-like material
         if: always()
         run: |

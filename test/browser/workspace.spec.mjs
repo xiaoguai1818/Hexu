@@ -36,10 +36,10 @@ test('移除项目成员后，其既有登录也无法再读任务',async({page,
 });
 test('待验收展示总结，普通完成评论不验收，明确反馈才完成',async({page})=>{
   await login(page);await page.getByRole('navigation').getByRole('button',{name:'团队试点',exact:true}).click();await open(page,'待验收样本');await expect(page.locator('#delivery')).toContainText('合成测试交付');await comment(page,'他说已完成，但还没完成');await expect(page.locator('#task-stage')).toHaveText('待验收');
-  await page.getByLabel('本次反馈').selectOption('accept');await comment(page,'我已核对并接受此合成样本');await expect(page.locator('#task-stage')).toHaveText('已完成');await expect(page.locator('#review-label')).toBeHidden();
+  await page.getByLabel('本次反馈').selectOption('accept');await comment(page,'我已核对并接受此合成样本');await expect(page.locator('#task-stage')).toHaveText('已完成');await expect(page.locator('#review-label')).toBeHidden();await page.getByRole('button',{name:'关闭任务详情'}).click();await expect(page.getByRole('region',{name:'已完成',exact:true})).toContainText('待验收样本');
 });
 test('返工回讨论，旧交付保留，不自动重新开发',async({page})=>{
-  await login(page);await page.getByRole('navigation').getByRole('button',{name:'团队试点',exact:true}).click();await open(page,'返工样本');await page.getByLabel('本次反馈').selectOption('discuss');await comment(page,'新需求还不成熟，先澄清');await expect(page.locator('#task-stage')).toHaveText('待开发');await expect(page.locator('#delivery')).toContainText('合成测试交付');
+  await login(page);await page.getByRole('navigation').getByRole('button',{name:'团队试点',exact:true}).click();await open(page,'返工样本');await page.getByLabel('本次反馈').selectOption('discuss');await comment(page,'新需求还不成熟，先澄清');await expect(page.locator('#task-stage')).toHaveText('待开发');await expect(page.locator('#delivery')).toContainText('合成测试交付');await page.getByRole('button',{name:'关闭任务详情'}).click();await expect(page.getByRole('region',{name:'待开发',exact:true})).toContainText('返工样本');
 });
 test('窄屏可用，键盘关闭任务后草稿保留，已完成任务评论不重启',async({page},info)=>{
   await page.setViewportSize({width:390,height:844});await login(page);await page.getByRole('navigation').getByRole('button',{name:'团队试点',exact:true}).click();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath('mobile-board.png'),fullPage:true});

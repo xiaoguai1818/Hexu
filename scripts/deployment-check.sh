@@ -72,7 +72,13 @@ console.log("Runtime artifact: compiled code and skills load as non-root without
 # Consistent offline backup, destroy the CI volume, restore into a brand-new volume.
 "${compose[@]}" stop app app-peer >> "$report/lifecycle.log" 2>&1
 container=$("${compose[@]}" ps --all -q app)
-docker cp "$container:/data/tasks.sqlite" "$report/backup.sqlite"
+# SIGTERM/last-connection close is not proof that all WAL pages reached the main file.
+# Use the runtime backup operation over the whole disposable database directory.
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+  --mount "type=volume,src=${project}_taskdata,dst=/data" "hexu-ci-runtime:$HEXU_CI_TAG" \
+  node --input-type=module -e 'import {createDatabaseBackup} from "./dist/index.js"; await createDatabaseBackup("/data/tasks.sqlite","/data/ci-backup.sqlite"); console.log("Consistent WAL-inclusive backup created");' \
+  >> "$report/lifecycle.log" 2>&1
+docker cp "$container:/data/ci-backup.sqlite" "$report/backup.sqlite"
 "${compose[@]}" logs --no-color > "$report/before-restore.log" 2>&1
 "${compose[@]}" down --volumes --remove-orphans >> "$report/lifecycle.log" 2>&1
 "${compose[@]}" create app app-peer >> "$report/lifecycle.log" 2>&1
@@ -95,5 +101,5 @@ grep -q CI_FIXTURE_ONLY "$report/negative-disabled.log"
 grep -q ENOENT "$report/negative-credentials.log"
 node --input-type=module -e '
 import {writeFileSync} from "node:fs";
-writeFileSync("ci-results/deployment/lifecycle.json",JSON.stringify({source:process.env.HEXU_SOURCE_SHA,scope:"compiled-core-ci-fixture-not-product-deployment",checks:["non-root-compiled-artifact","export-load-identity","clean-start","real-http-functional-tests","two-process-database-access","abrupt-kill-restart","container-recreate","offline-backup-fresh-volume-restore","missing-opt-in-fails","missing-credentials-fails"],passed:true},null,2)+"\n");'
+writeFileSync("ci-results/deployment/lifecycle.json",JSON.stringify({source:process.env.HEXU_SOURCE_SHA,scope:"compiled-core-ci-fixture-not-product-deployment",checks:["non-root-compiled-artifact","export-load-identity","clean-start","real-http-functional-tests","two-process-database-access","abrupt-kill-restart","container-recreate","consistent-wal-backup-fresh-volume-restore","missing-opt-in-fails","missing-credentials-fails"],passed:true},null,2)+"\n");'
 echo 'Compiled-core deployment checks passed. Full Web/Pi/Host acceptance remains separate.'

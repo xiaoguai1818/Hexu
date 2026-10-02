@@ -1,6 +1,6 @@
 import {pathToFileURL} from 'node:url';
 export function requireAllLayers(jobs) {
-  for(const name of ['regression','deployment','mutation','security']) {
+  for(const name of ['regression','deployment','mutation','security','web']) {
     if(jobs?.[name]?.result!=='success')throw new Error(`${name}: ${jobs?.[name]?.result??'missing'}`);
   }
 }

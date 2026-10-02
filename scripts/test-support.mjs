@@ -2,7 +2,7 @@ import {readdirSync, readFileSync, existsSync} from 'node:fs';
 import {join, relative, resolve} from 'node:path';
 
 export function discoverTests(root) {
-  const suites={core:[],persistence:[],tooling:[],deployment:[]};
+  const suites={core:[],persistence:[],tooling:[],deployment:[],browser:[]};
   function walk(dir) {
     for(const entry of readdirSync(dir,{withFileTypes:true})) {
       const file=join(dir,entry.name);
@@ -10,7 +10,7 @@ export function discoverTests(root) {
       if(entry.isDirectory()) walk(file);
       else if(/\.(test|spec)\.(ts|mjs|js)$/.test(entry.name)) {
         const path=relative(root,file).replaceAll('\\','/');
-        const suite=path.startsWith('test/persistence/')?'persistence':path.startsWith('test/quality/')?'tooling':path.startsWith('test/deployment/')?'deployment':path.split('/').length===2||path.startsWith('test/regression/')?'core':null;
+        const suite=path.startsWith('test/browser/')?'browser':path.startsWith('test/persistence/')?'persistence':path.startsWith('test/quality/')?'tooling':path.startsWith('test/deployment/')?'deployment':path.split('/').length===2||path.startsWith('test/regression/')?'core':null;
         if(!suite) throw new Error(`Unassigned test file: ${path}`);
         suites[suite].push(path);
       }

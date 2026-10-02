@@ -1,0 +1,70 @@
+# Only the actual Web runtime is served; no fixture HTTP routes are mounted.
+services:
+  app:
+    image: hexu-web:${HEXU_CI_TAG:?unique tag required}
+    build:
+      context: .
+      target: runtime
+    environment:
+      HEXU_PUBLIC_ORIGIN: http://app:8080
+      HEXU_ALLOW_INSECURE_HTTP: '1'
+    volumes: [webdata:/data]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    pids_limit: 128
+    mem_limit: 512m
+    networks: [isolated]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  seed:
+    image: hexu-web:${HEXU_CI_TAG:?unique tag required}
+    volumes:
+      - webdata:/data
+      - ./test/fixtures:/app/test/fixtures:ro
+      - ./ci-results/web-private:/test-private
+    command: [node, test/fixtures/web-seed.mjs]
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  browser:
+    build:
+      context: .
+      dockerfile: ci/browser.Dockerfile
+    user: "${HEXU_CI_UID:?uid}:${HEXU_CI_GID:?gid}"
+    environment:
+      HEXU_TEST_URL: http://app:8080
+      HEXU_REPORT_DIR: /reports
+      HEXU_BROWSER: ${HEXU_BROWSER:-chromium}
+      HOME: /tmp
+    volumes:
+      - ./ci-results/browser:/reports
+      - ./ci-results/web-private:/test-private:ro
+    read_only: true
+    tmpfs: [/tmp]
+    shm_size: 1gb
+    init: true
+    networks: [isolated]
+  check:
+    image: hexu-web:${HEXU_CI_TAG:?unique tag required}
+    user: "${HEXU_CI_UID:?uid}:${HEXU_CI_GID:?gid}"
+    environment:
+      HEXU_TEST_URL: http://app:8080
+    volumes:
+      - ./test/browser:/checks:ro
+      - ./ci-results/browser:/reports
+      - ./ci-results/web-private:/test-private
+    command: [node, /checks/restart.mjs, prepare]
+    networks: [isolated]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+volumes:
+  webdata:
+networks:
+  isolated:
+    internal: true

@@ -6,6 +6,9 @@
   "type": "module",
   "engines": { "node": ">=22.16.0" },
   "scripts": {
+    "start": "node bin/server.mjs",
+    "account:add": "node bin/add-user.mjs",
+    "test:browser": "playwright test --config ci/playwright.config.mjs",
     "test": "npm run test:core && npm run test:persistence && npm run test:tooling",
     "test:core": "node scripts/test-runner.mjs core",
     "test:persistence": "node scripts/test-runner.mjs persistence",
@@ -19,6 +22,7 @@
     "acceptance:product": "node scripts/readiness.mjs --require-product"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "22.19.0",
     "typescript": "5.9.3"
   }

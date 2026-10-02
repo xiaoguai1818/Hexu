@@ -134,7 +134,8 @@ jobs:
           GOBIN="$RUNNER_TEMP/hexu-ci-tools" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           "$RUNNER_TEMP/hexu-ci-tools/actionlint" -color .github/workflows/*.yml 2>&1 | tee ci-results/security/actionlint.log
           bash -n scripts/deployment-check.sh
-          shellcheck scripts/deployment-check.sh 2>&1 | tee ci-results/security/shellcheck.log
+          bash -n scripts/web-check.sh
+          shellcheck scripts/deployment-check.sh scripts/web-check.sh 2>&1 | tee ci-results/security/shellcheck.log
       - name: Check tracked files for runtime data and secret-like material
         if: always()
         run: |
@@ -157,10 +158,36 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  web:
+    name: Web deployment and browser (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+    env:
+      HEXU_BROWSER: ${{ matrix.browser }}
+      HEXU_CI_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Deploy actual Web entry and test user workflows, revocation and restart
+        run: bash scripts/web-check.sh
+      - name: Retain browser reports, screenshots and failure traces
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: web-${{ matrix.browser }}-${{ github.run_attempt }}
+          path: ci-results/browser/
+          if-no-files-found: error
+          retention-days: 14
+
   quality-gate:
     name: Quality gate
     if: always()
-    needs: [regression, deployment, mutation, security]
+    needs: [regression, deployment, mutation, security, web]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

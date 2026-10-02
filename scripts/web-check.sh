@@ -4,7 +4,9 @@ cd "$(dirname "$0")/.."
 : "${HEXU_CI_TAG:?unique test tag required}"
 : "${HEXU_SOURCE_SHA:?source SHA required}"
 case "$HEXU_CI_TAG" in *[!a-zA-Z0-9_.-]*|'') exit 1;; esac
-export HEXU_CI_UID="$(id -u)" HEXU_CI_GID="$(id -g)"
+HEXU_CI_UID=$(id -u)
+HEXU_CI_GID=$(id -g)
+export HEXU_CI_UID HEXU_CI_GID
 project="hexu-web-${HEXU_CI_TAG,,}"
 report="$PWD/ci-results/browser"
 private="$PWD/ci-results/web-private"

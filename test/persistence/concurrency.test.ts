@@ -24,8 +24,13 @@ async function contenders(mode:string,file:string,id='') {
   } finally {for(const child of children)child.kill();}
 }
 test('persistence: eight independent processes initialize one empty database safely', {timeout:60000},async t=>{
+  // Keep the startup race as a regression; do not retry failed test runs.
   const dir=mkdtempSync(join(tmpdir(),'hexu-start-race-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
   for(let round=0;round<3;round++) {const results=await contenders('start',join(dir,`${round}.sqlite`));assert.ok(results.every(r=>r.ok),JSON.stringify(results));}
+});
+test('persistence: workspace initialization tolerates eight concurrent first starts',{timeout:60000},async t=>{
+  const dir=mkdtempSync(join(tmpdir(),'hexu-workspace-race-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  for(let round=0;round<3;round++){const results=await contenders('workspace',join(dir,`${round}.sqlite`));assert.ok(results.every(r=>r.ok),JSON.stringify(results));}
 });
 test('persistence: eight competing processes produce exactly one versioned write', {timeout:60000},async t=>{
   const dir=mkdtempSync(join(tmpdir(),'hexu-write-race-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const file=join(dir,'tasks.sqlite');

@@ -6,7 +6,7 @@ services:
       context: .
       target: runtime
     environment:
-      HEXU_PUBLIC_ORIGIN: http://app:8080
+      HEXU_PUBLIC_ORIGIN: http://hexu.test:8080
       HEXU_ALLOW_INSECURE_HTTP: '1'
     volumes: [webdata:/data]
     read_only: true
@@ -15,7 +15,9 @@ services:
     tmpfs: [/tmp]
     pids_limit: 128
     mem_limit: 512m
-    networks: [isolated]
+    networks:
+      isolated:
+        aliases: [hexu.test]
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 2s
@@ -37,7 +39,7 @@ services:
       dockerfile: ci/browser.Dockerfile
     user: "${HEXU_CI_UID:?uid}:${HEXU_CI_GID:?gid}"
     environment:
-      HEXU_TEST_URL: http://app:8080
+      HEXU_TEST_URL: http://hexu.test:8080
       HEXU_REPORT_DIR: /reports
       HEXU_BROWSER: ${HEXU_BROWSER:-chromium}
       HOME: /tmp
@@ -53,7 +55,7 @@ services:
     image: hexu-web:${HEXU_CI_TAG:?unique tag required}
     user: "${HEXU_CI_UID:?uid}:${HEXU_CI_GID:?gid}"
     environment:
-      HEXU_TEST_URL: http://app:8080
+      HEXU_TEST_URL: http://hexu.test:8080
     volumes:
       - ./test/browser:/checks:ro
       - ./ci-results/browser:/reports

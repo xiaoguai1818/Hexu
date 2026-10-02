@@ -1,6 +1,7 @@
 // Child process for real SQLite startup/CAS/crash tests; no network or real data.
 import {DatabaseSync} from 'node:sqlite';
 import {SqliteTasks} from '../../src/adapters/sqlite/task-repository.ts';
+import {SqliteWorkspace} from '../../src/adapters/sqlite/workspace.ts';
 const [mode,file,id]=process.argv.slice(2);
 let db,task;
 function send(value) {return new Promise(resolve=>process.send(value,()=>resolve()));}
@@ -9,6 +10,7 @@ await send({ready:true});
 process.once('message',async()=>{
   try {
     if(mode==='start') {db=new SqliteTasks(file);db.list('p');}
+    else if(mode==='workspace') {db=new SqliteWorkspace(file);db.projects('p');}
     else if(mode==='cas') {task.version++;task.title='winner-'+process.pid;db.save(task,task.version-1);}
     else if(mode==='crash') {
       const raw=new DatabaseSync(file);raw.exec('BEGIN IMMEDIATE');

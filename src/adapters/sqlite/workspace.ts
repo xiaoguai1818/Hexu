@@ -1,4 +1,5 @@
 import {DatabaseSync} from 'node:sqlite';
+import {retrySqliteStartup} from './startup.ts';
 import {mkdirSync} from 'node:fs';
 import {dirname,resolve} from 'node:path';
 import {DomainError} from '../../core/errors.ts';
@@ -10,9 +11,10 @@ export class SqliteWorkspace implements WorkspaceStore {
     if(filename!==':memory:')mkdirSync(dirname(resolve(filename)),{recursive:true,mode:0o700});
     this.db=new DatabaseSync(filename,{timeout:5000});
     try {
-      const version=()=>Number(this.db.prepare('PRAGMA user_version').get()!['user_version']);
+      const version=()=>retrySqliteStartup(()=>Number(this.db.prepare('PRAGMA user_version').get()!['user_version']));
       if(version()>1)throw new DomainError('SCHEMA_TOO_NEW');
-      this.db.exec('PRAGMA foreign_keys=ON; BEGIN IMMEDIATE');
+      this.db.exec('PRAGMA foreign_keys=ON');
+      retrySqliteStartup(()=>this.db.exec('BEGIN IMMEDIATE'));
       try {
         if(version()>1)throw new DomainError('SCHEMA_TOO_NEW');
         if(version()===0)this.db.exec(`
@@ -26,7 +28,7 @@ export class SqliteWorkspace implements WorkspaceStore {
         `);
         this.db.exec('COMMIT');
       }catch(error){this.db.exec('ROLLBACK');throw error;}
-      this.db.exec('PRAGMA journal_mode=WAL');
+      retrySqliteStartup(()=>this.db.exec('PRAGMA journal_mode=WAL'));
     }catch(error){this.db.close();throw error;}
   }
   private user(row:Record<string,unknown>|undefined):Account|undefined {

@@ -1,4 +1,5 @@
 import {DatabaseSync} from 'node:sqlite';
+import {retrySqliteStartup} from './startup.ts';
 import {mkdirSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {DomainError} from '../../core/errors.ts';
@@ -14,10 +15,10 @@ export class SqliteTasks implements TaskRepository {
     this.db = new DatabaseSync(filename, {timeout:5000});
     try {
       // Inspect before changing journal mode: older code must not rewrite a newer DB.
-      const version = () => Number(this.db.prepare('PRAGMA user_version').get()!['user_version']);
+      const version = () => retrySqliteStartup(() => Number(this.db.prepare('PRAGMA user_version').get()!['user_version']));
       if (version() > 1) throw new DomainError('SCHEMA_TOO_NEW');
       if (version() === 0) {
-        this.db.exec('BEGIN IMMEDIATE');
+        retrySqliteStartup(() => this.db.exec('BEGIN IMMEDIATE'));
         try {
           // Another process may have completed initialization while we waited.
           const current = version();
@@ -35,7 +36,7 @@ export class SqliteTasks implements TaskRepository {
           this.db.exec('COMMIT');
         } catch (error) {this.db.exec('ROLLBACK'); throw error;}
       }
-      this.db.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
+      retrySqliteStartup(() => this.db.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;'));
     } catch (error) {this.db.close(); throw error;}
   }
   private decode(row: Record<string, unknown>): Task {

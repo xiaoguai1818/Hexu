@@ -46,6 +46,9 @@ test('snapshot lifecycle: legitimate failure, interruption, rework and acceptanc
 });
 
 const mutations:Record<string,(task:Task)=>void>={
+  'array task state':t=>{t.state=['review'] as unknown as Task['state'];},
+  'array comment author kind':t=>{t.comments[0]!.authorKind=['human'] as unknown as 'human';},
+  'array run status':t=>{t.runs[0]!.status=['completed'] as unknown as 'completed';},
   'missing title':t=>{t.title='';},
   'invalid task id':t=>{t.id='../private';},
   'fractional version':t=>{t.version=1.5;},

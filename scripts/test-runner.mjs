@@ -1,7 +1,7 @@
 import {spawnSync} from 'node:child_process';
 import {mkdirSync, readFileSync, writeFileSync, existsSync} from 'node:fs';
 import {resolve, join} from 'node:path';
-import {discoverTests,checkTap,checkInventory} from './test-support.mjs';
+import {discoverTests,checkTap,checkInventory,checkCoverageInventory} from './test-support.mjs';
 
 const root=process.cwd(), suite=process.argv[2]??'core';
 const policy=JSON.parse(readFileSync(join(root,'ci/suites.json'),'utf8'));
@@ -23,7 +23,8 @@ try {
   if(!existsSync(junit)||!readFileSync(junit,'utf8').includes('<testcase')) throw new Error('JUnit report missing or empty');
   if(suite==='core') {
     const lcov=readFileSync(join(reports,'coverage.lcov'),'utf8');
-    for(const path of ['src/core/errors.ts','src/core/result.ts','src/core/stage-plan.ts','src/core/task.ts','src/application/task-service.ts','src/application/run-service.ts','src/adapters/sqlite/task-repository.ts']) if(!lcov.includes(path)) throw new Error(`Coverage omitted runtime module: ${path}`);
+    const modules=await checkCoverageInventory(root,lcov);
+    writeFileSync(join(reports,'coverage-inventory.json'),JSON.stringify({source:process.env.HEXU_SOURCE_SHA??'local',modules},null,2)+'\n');
   }
   writeFileSync(join(reports,`${suite}.json`),JSON.stringify({suite,scope:suite==='deployment'?'compiled-core-http-fixture-not-product-e2e':'current-core-and-test-infrastructure',source:process.env.GITHUB_SHA??process.env.HEXU_SOURCE_SHA??'local',node:process.version,files:inventory[suite],...totals,passed:true},null,2)+'\n');
 } catch(error) {failure=error;writeFileSync(join(reports,`${suite}.json`),JSON.stringify({suite,passed:false,error:String(error)},null,2)+'\n');}

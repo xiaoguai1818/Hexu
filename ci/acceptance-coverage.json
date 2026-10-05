@@ -22,6 +22,10 @@
     {"id":"A19","level":"core_only","missing":"real platform Pi without development Host","tests":["test/contracts.test.ts"]},
     {"id":"A20","level":"core_only","missing":"real skill switch and code delivery","tests":["test/deployment/functions.test.mjs"]},
     {"id":"A21","level":"web_partial","missing":"actual Pi continuation and a second executed development round; Web return-to-discussion preserves synthetic history","tests":["test/browser/workspace.spec.mjs"]},
-    {"id":"A22","level":"web_partial","missing":"comments during real Pi execution; multi-user comments, conflicts and no automatic restart tested in actual Web","tests":["test/browser/workspace.spec.mjs","test/workflow.test.ts"]}
+    {"id":"A22","level":"web_partial","missing":"comments during real Pi execution; multi-user comments, conflicts and no automatic restart tested in actual Web","tests":["test/browser/workspace.spec.mjs","test/workflow.test.ts"]},
+    {"id":"A23","level":"not_implemented","missing":"expert-team method recommendation and orchestration usable without workflow expertise; source collection only","tests":[]},
+    {"id":"A24","level":"not_implemented","missing":"real multi-expert stage authorization, context handoff and human acceptance; existing single-run tests do not certify this","tests":[]},
+    {"id":"A25","level":"not_implemented","missing":"cross-project expert-team isolation and aggregate authorized usage across specialists and retries","tests":[]},
+    {"id":"A26","level":"not_implemented","missing":"honest specialist failure synthesis, workspace protection and actual whole-team cancellation/recovery","tests":[]}
   ]
 }

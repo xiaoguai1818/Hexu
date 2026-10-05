@@ -1,0 +1,10 @@
+# Optional operator-configured discussion service. No default credentials or development access.
+services:
+  app:
+    build:
+      target: runtime-pi
+    environment:
+      HEXU_PI_CONFIG: /run/hexu-pi/model.json
+    volumes:
+      - ${HEXU_PI_CONFIG_DIR:?absolute external directory with model.json and key}:/run/hexu-pi:ro
+    mem_limit: 1g

@@ -11,9 +11,12 @@ import {WorkspaceService} from '../../application/workspace-service.ts';
 import {TaskService} from '../../application/task-service.ts';
 import {DomainError} from '../../core/errors.ts';
 import type {Task} from '../../core/task.ts';
+import {RunService} from '../../application/run-service.ts';
+import {DiscussionService} from '../../application/discussion-service.ts';
+import {SqliteDiscussionBudget} from '../sqlite/discussion-budget.ts';
+import type {DiscussionRuntime} from '../../ports/discussion-runtime.ts';
 
-type Options={directory:string;origin:string;allowInsecureHttp?:boolean;webRoot:string};
-const availability={discussion:false,development:false,reason:'Pi 与开发环境尚未接入；可以保存想法和协作评论。'};
+type Options={directory:string;origin:string;allowInsecureHttp?:boolean;webRoot:string;discussion?:{runtime:DiscussionRuntime;maxConcurrent:number;dailyLimit:number;timeoutMs:number}};
 function fields(value:Record<string,unknown>,keys:string[]) {
   if(Object.keys(value).some(key=>!keys.includes(key)))throw new DomainError('INVALID_INPUT');return value;
 }
@@ -38,8 +41,17 @@ export function createWebApp(options:Options) {
   try{repository=new SqliteTasks(join(options.directory,'tasks.sqlite'));}catch(error){store.close();throw error;}
   const auth=new AuthService(store,new CryptoPasswords(),Date.now),workspace=new WorkspaceService(store,randomUUID);
   const tasks=new TaskService({tasks:repository,memberships:store,ids:randomUUID,now:()=>new Date().toISOString()});
+  let discussion:DiscussionService|undefined,budget:SqliteDiscussionBudget|undefined;
+  try{
+    if(options.discussion){
+      budget=new SqliteDiscussionBudget(options.directory);
+      discussion=new DiscussionService({...options.discussion,tasks:repository,app:tasks,runs:new RunService(repository,()=>new Date().toISOString()),members:store,budget,now:()=>new Date().toISOString()});
+      discussion.recover(repository.activeDiscussions());
+    }
+  }catch(error){budget?.close();repository.close();store.close();throw error;}
+  const availability=()=>({discussion:discussion?.available===true,development:false,reason:discussion?.available?'Pi 可协助梳理需求；代码开发尚未开放。':'Pi 未配置或暂不可用；成员评论仍可保存。'});
   function taskView(actor:string,task:Task) {
-    return {task,permissions:{canExecute:store.lookup(task.projectId,actor)?.canExecute===true,canReview:task.reviewerId===actor},availability};
+    return {task,permissions:{canExecute:store.lookup(task.projectId,actor)?.canExecute===true,canReview:task.reviewerId===actor},availability:availability()};
   }
   const server=createServer(async(req,res)=>{
     const headers:Record<string,string>={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"};
@@ -58,7 +70,7 @@ export function createWebApp(options:Options) {
       }
       const token=cookie(req);
       if(path==='/api/session'&&method==='GET') {
-        try{return send(200,{...auth.authenticate(token),availability});}catch(error){if(error instanceof DomainError&&error.code==='UNAUTHENTICATED')return send(200,{user:null});throw error;}
+        try{return send(200,{...auth.authenticate(token),availability:availability()});}catch(error){if(error instanceof DomainError&&error.code==='UNAUTHENTICATED')return send(200,{user:null});throw error;}
       }
       // Unknown paths cannot become a worker/admin backdoor.
       const projectRoute=path.match(/^\/api\/projects\/([A-Za-z0-9_-]+)(?:\/(tasks|members)(?:\/([A-Za-z0-9_-]+))?)?$/);
@@ -75,9 +87,9 @@ export function createWebApp(options:Options) {
         const [,id,op,userId]=projectRoute;const p=workspace.get(actor,id!);
         if(method==='GET'&&!op)return send(200,p);
         if(op==='members'&&method==='POST'&&!userId){const b=fields(await body(req),['username','canExecute']);return send(200,workspace.addMember(actor,p.id,b['username'],b['canExecute']));}
-        if(op==='members'&&method==='DELETE'&&userId)return send(200,workspace.removeMember(actor,p.id,userId));
+        if(op==='members'&&method==='DELETE'&&userId){const result=workspace.removeMember(actor,p.id,userId);discussion?.recheck();return send(200,result);}
         if(op==='tasks'&&!userId){
-          if(method==='GET')return send(200,{tasks:tasks.list(actor,p.id),availability});
+          if(method==='GET')return send(200,{tasks:tasks.list(actor,p.id),availability:availability()});
           if(method==='POST'){const b=fields(await body(req),['title','reviewerId']);return send(201,taskView(actor,tasks.create({actorId:actor,projectId:p.id,title:b['title'] as string,reviewerId:b['reviewerId'] as string})));}
         }
       }
@@ -89,9 +101,9 @@ export function createWebApp(options:Options) {
           switch(op){
             case 'comment':fields(b,['version','body']);result=tasks.comment(actor,task.id,b['version'] as number,b['body'] as string);break;
             case 'review':fields(b,['version','body','intent']);result=tasks.review(actor,task.id,b['version'] as number,{body:b['body'] as string,intent:b['intent'] as 'accept'|'discuss'});break;
-            case 'cancel':fields(b,['version']);result=tasks.requestCancel(actor,task.id,b['version'] as number);break;
+            case 'cancel':fields(b,['version']);result=tasks.requestCancel(actor,task.id,b['version'] as number);discussion?.recheck();break;
             case 'queue':if(!store.lookup(task.projectId,actor)?.canExecute)throw new DomainError('EXECUTION_FORBIDDEN');throw new DomainError('ENVIRONMENT_NOT_READY');
-            case 'discuss':throw new DomainError('PI_NOT_READY');
+            case 'discuss':fields(b,['version','body']);if(!discussion)throw new DomainError('PI_NOT_READY');return send(202,taskView(actor,discussion.request(actor,task.id,b['version'] as number,b['body'] as string)));
             default:throw new DomainError('INVALID_INPUT');
           }
           return send(200,taskView(actor,result));
@@ -99,11 +111,12 @@ export function createWebApp(options:Options) {
       }
       send(404,{error:'NOT_FOUND'});
     }catch(error){
-      const codes:Record<string,number>={UNAUTHENTICATED:401,FORBIDDEN:403,EXECUTION_FORBIDDEN:403,REVIEW_FORBIDDEN:403,PROJECT_OWNER_REQUIRED:403,OWNER_REQUIRED:409,CSRF:403,INVALID_INPUT:400,CONTENT_TYPE:415,BODY_TOO_LARGE:413,ACCOUNT_NOT_FOUND:404,RATE_LIMITED:429,PI_NOT_READY:503,ENVIRONMENT_NOT_READY:503,CORRUPT_SNAPSHOT:500};
+      const codes:Record<string,number>={UNAUTHENTICATED:401,FORBIDDEN:403,EXECUTION_FORBIDDEN:403,REVIEW_FORBIDDEN:403,PROJECT_OWNER_REQUIRED:403,OWNER_REQUIRED:409,CSRF:403,INVALID_INPUT:400,CONTENT_TYPE:415,BODY_TOO_LARGE:413,ACCOUNT_NOT_FOUND:404,RATE_LIMITED:429,PI_NOT_READY:503,DISCUSSION_BUSY:429,DISCUSSION_LIMIT:429,ENVIRONMENT_NOT_READY:503,CORRUPT_SNAPSHOT:500};
       const code=error instanceof DomainError?error.code:'INTERNAL_ERROR';const status=error instanceof DomainError?(codes[code]??409):500;
       send(status,{error:code},status===429?{'Retry-After':'900'}:{});
     }
   });
   server.requestTimeout=15000;server.headersTimeout=10000;server.keepAliveTimeout=1000;
-  return {server,auth,workspace,tasks,close:()=>{repository.close();store.close();}};
+  const close=()=>{if(discussion?.activeCount)throw new Error('Stop active discussions before closing storage');budget?.close();repository.close();store.close();};
+  return {server,auth,workspace,tasks,discussion,close,shutdown:async()=>{await discussion?.shutdown();close();}};
 }

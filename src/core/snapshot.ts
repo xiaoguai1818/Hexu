@@ -1,6 +1,8 @@
 import {DomainError} from './errors.ts';
 import {stagePlan} from './stage-plan.ts';
 import {normalizeResult} from './result.ts';
+import {normalizeUsage,normalizeModel} from './usage.ts';
+import type {RunModel} from './usage.ts';
 import type {Task, Comment, Run} from './task.ts';
 
 const object=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -27,7 +29,8 @@ function run(value:unknown,version:number):asserts value is Run {
   input['comments'].forEach(comment);
   ensure(value['kind']==='discussion'?input['scope']===null:text(input['scope']));
   for(const previous of input['priorDeliveries']) normalizeResult('development',previous);
-  ensure(object(value['usage'])&&value['usage']['status']==='not_reported');
+  normalizeUsage(value['usage']);
+  if(value['model']!==undefined)normalizeModel(value['model'] as RunModel);
   const status=value['status'];
   if(value['startedAt']!==undefined) ensure(timestamp(value['startedAt']));
   if(status==='queued') ensure(value['startedAt']===undefined);

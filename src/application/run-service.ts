@@ -1,5 +1,7 @@
 import {DomainError, requireText} from '../core/errors.ts';
 import {normalizeResult} from '../core/result.ts';
+import {normalizeUsage,normalizeModel} from '../core/usage.ts';
+import type {RunModel} from '../core/usage.ts';
 import type {Task, Run, RunResult, RunStatus} from '../core/task.ts';
 import type {TaskRepository} from '../ports/task-repository.ts';
 
@@ -21,11 +23,12 @@ export class RunService {
   private assertStatus(run: Run, ...allowed: RunStatus[]): void {
     if (!allowed.includes(run.status)) throw new DomainError('INVALID_RUN_STATE');
   }
-  start(taskId: string, runId: string): Task {
+  start(taskId: string, runId: string, model?:RunModel): Task {
     const {task, run} = this.load(taskId, runId);
     if (run.status === 'running') return task;
     this.assertStatus(run, 'queued');
     if (task.state !== (run.kind === 'discussion' ? 'discussing' : 'queued')) throw new DomainError('INVALID_TASK_STATE');
+    if(model)run.model=normalizeModel(model);
     run.status = 'running'; run.startedAt = this.now();
     if (run.kind === 'development') task.state = 'developing';
     return this.persist(task, run, 'run.started');
@@ -40,6 +43,17 @@ export class RunService {
     task.comments.push({id: `pi-${run.id}`, authorId: 'pi', authorKind: 'ai', body: result.text ?? result.summary!, at: this.now()});
     if (run.kind === 'development') task.state = 'review';
     return this.persist(task, run, 'run.completed');
+  }
+  reportUsage(taskId:string,runId:string,value:unknown):Task {
+    const {task,run}=this.load(taskId,runId),usage=normalizeUsage(value);
+    if(run.status==='queued')throw new DomainError('INVALID_RUN_STATE');
+    if(usage.status==='not_reported')return task;
+    if(run.usage.status==='reported') {
+      if(JSON.stringify(run.usage)!==JSON.stringify(usage))throw new DomainError('USAGE_CONFLICT');
+      return task;
+    }
+    run.usage=usage;
+    return this.persist(task,run,'run.usage_reported');
   }
   fail(taskId: string, runId: string, reason: string): Task {
     const {task, run} = this.load(taskId, runId); this.assertStatus(run, 'queued', 'running');

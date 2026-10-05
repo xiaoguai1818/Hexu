@@ -23,7 +23,12 @@ export function renderTask(view,project,user){
     for(const artifact of result.artifacts??[]){const p=element('p');p.append(element('strong',artifact.name),element('code',artifact.reference));panel.append(p);}
     for(const issue of result.unresolved??[])panel.append(element('p',`未解决：${issue}`,'error'));
   }else panel.append(element('p','尚无开发交付。任务讨论不会自动修改代码。','muted'));
-  const meta=document.querySelector('#task-meta');meta.replaceChildren();for(const [key,value]of [['验收负责人',names.get(task.reviewerId)??'原项目成员'],['当前版本',String(task.version)],['AI 用量','尚未报告（不代表零费用）']])meta.append(element('dt',key),element('dd',value));
+  const meta=document.querySelector('#task-meta');meta.replaceChildren();for(const [key,value]of [['验收负责人',names.get(task.reviewerId)??'原项目成员'],['当前版本',String(task.version)],['AI 用量',task.runs.some(r=>r.usage.status==='reported')?task.runs.filter(r=>r.usage.status==='reported').reduce((n,r)=>n+r.usage.inputTokens+r.usage.outputTokens+r.usage.cacheReadTokens+r.usage.cacheWriteTokens,0)+' tokens（已报告部分；费用尚未核实）':'尚未报告（不代表零费用）']])meta.append(element('dt',key),element('dd',value));
+  const running=task.runs.find(r=>['queued','running','cancel_requested'].includes(r.status));
+  const last=task.runs.at(-1),ask=document.querySelector('#ask-ai');
+  ask.disabled=!view.availability.discussion||task.state!=='discussing'||Boolean(running);
+  ask.title=view.availability.reason;
+  document.querySelector('#discussion-status').textContent=running?.kind==='discussion'?(running.status==='cancel_requested'?'正在等待 Pi 停止，请勿重复提交。':'Pi 正在梳理需求，关闭页面不会中止；尚未开始代码开发。'):last?.kind==='discussion'?(last.reason??(last.status==='completed'?'Pi 已回复，可继续讨论。':last.status==='canceled'?'本次讨论已取消；费用可能尚未完整报告。':'')):view.availability.reason;
   const review=document.querySelector('#review-label');review.hidden=!(task.state==='review'&&permissions.canReview);if(review.hidden)document.querySelector('[name=intent]').value='comment';
   document.querySelector('#cancel-task').hidden=!(permissions.canExecute&&task.runs.some(r=>['queued','running','cancel_requested'].includes(r.status)));
 }

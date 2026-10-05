@@ -9,7 +9,7 @@ function navigation(){const nav=$('#project-list');nav.replaceChildren();for(con
 async function loadProjects(){const actor=user?.id;const result=await api('/api/projects');if(user?.id!==actor)return;projects=result.projects;navigation();}
 async function selectProject(id){
   const requestVersion=++navigationVersion,actor=user?.id;
-  try{const next=await api(`/api/projects/${id}`);const data=await api(`/api/projects/${id}/tasks`);if(requestVersion!==navigationVersion||user?.id!==actor)return;project=next;$('#project-name').textContent=project.name;$('#new-task').disabled=false;$('#members-panel').hidden=false;$('#global-message').textContent='';navigation();renderBoard($('#board'),data.tasks,openTask);renderMembers();}
+  try{const next=await api(`/api/projects/${id}`);const data=await api(`/api/projects/${id}/tasks`);if(requestVersion!==navigationVersion||user?.id!==actor)return;project=next;$('#ai-availability').textContent=data.availability.reason;$('#project-name').textContent=project.name;$('#new-task').disabled=false;$('#members-panel').hidden=false;$('#global-message').textContent='';navigation();renderBoard($('#board'),data.tasks,openTask);renderMembers();}
   catch(e){if(requestVersion!==navigationVersion||user?.id!==actor)return;project=null;$('#board').replaceChildren();$('#project-name').textContent='项目不可访问';$('#members-panel').hidden=true;$('#new-task').disabled=true;if(e.code==='UNAUTHENTICATED')loggedOut();else message(e);}
 }
 function renderMembers(){const list=$('#members');list.replaceChildren();$('#member-form').hidden=project.ownerId!==user.id;for(const member of project.members){const li=element('li');li.append(element('span',member.username),element('small',member.id===project.ownerId?'负责人':member.canExecute?'可执行':'可讨论'));if(project.ownerId===user.id&&member.id!==project.ownerId){const remove=element('button','移除','quiet');remove.setAttribute('aria-label',`移除 ${member.username}`);remove.onclick=async()=>{remove.disabled=true;try{await api(`/api/projects/${project.id}/members/${member.id}`,{method:'DELETE'});await selectProject(project.id);}catch(e){message(e);remove.disabled=false;}};li.append(remove);}list.append(li);}}
@@ -29,6 +29,21 @@ $('#member-form').addEventListener('submit',event=>{event.preventDefault();const
 $('#new-task').onclick=()=>{if(!project)return;const form=$('#task-form');form.reset();form.querySelector('.error').textContent='';const select=form.elements.reviewerId;select.replaceChildren();for(const m of project.members){const option=element('option',m.username);option.value=m.id;select.append(option);}select.value=project.ownerId;$('#new-task-dialog').showModal();};
 $('#task-form').addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;submit(form,async()=>{const next=await api(`/api/projects/${project.id}/tasks`,{method:'POST',body:{title:form.elements.title.value,reviewerId:form.elements.reviewerId.value}});$('#new-task-dialog').close();await selectProject(project.id);await openTask(next.task.id);});});
 $('#comment-form').addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;submit(form,async()=>{if(!view)return;const {task}=view;drafts.set(task.id,form.elements.body.value);const intent=form.elements.intent.value,op=intent==='comment'?'comment':'review';view=await api(`/api/tasks/${task.id}/${op}`,{method:'POST',body:{version:task.version,body:form.elements.body.value,...(op==='review'?{intent}:{})}});drafts.delete(task.id);form.reset();renderTask(view,project,user);});});
+$('#ask-ai').onclick=async()=>{
+  if(!view||$('#ask-ai').disabled)return;const form=$('#comment-form');if(!form.reportValidity())return;
+  const id=view.task.id,actor=user?.id;drafts.set(id,form.elements.body.value);$('#ask-ai').disabled=true;
+  try{const next=await api(`/api/tasks/${id}/discuss`,{method:'POST',body:{version:view.task.version,body:form.elements.body.value}});if(user?.id!==actor||view?.task.id!==id)return;view=next;drafts.delete(id);form.reset();renderTask(view,project,user);}
+  catch(e){if(user?.id===actor&&view?.task.id===id){$('#comment-error').textContent=errorMessage(e);renderTask(view,project,user);}}
+};
+// Refresh an active discussion without discarding a member's draft or re-sending a request.
+let refreshing=false;
+setInterval(async()=>{
+  if(refreshing||!view||!user||!project||!$('#task-dialog').open||!view.task.runs.some(r=>['queued','running','cancel_requested'].includes(r.status)))return;
+  refreshing=true;const id=view.task.id,actor=user.id,projectId=project.id;
+  try{const next=await api(`/api/tasks/${id}`);if(user?.id===actor&&project?.id===projectId&&view?.task.id===id&&next.task.version>=view.task.version&&$('#task-dialog').open){view=next;renderTask(view,project,user);}}
+  catch(e){if(['FORBIDDEN','UNAUTHENTICATED'].includes(e.code)&&view?.task.id===id)await openTask(id);}
+  finally{refreshing=false;}
+},750);
 $('#refresh-task').onclick=async()=>{if(view){drafts.set(view.task.id,$('#comment-form [name=body]').value);await openTask(view.task.id);}};
 $('#cancel-task').onclick=async()=>{if(!view)return;try{view=await api(`/api/tasks/${view.task.id}/cancel`,{method:'POST',body:{version:view.task.version}});renderTask(view,project,user);}catch(e){$('#comment-error').textContent=errorMessage(e);}};
 $('#refresh').onclick=async()=>{try{await loadProjects();if(project)await selectProject(project.id);}catch(e){if(e.code==='UNAUTHENTICATED')loggedOut();else message(e);}};

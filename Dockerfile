@@ -31,6 +31,20 @@ RUN mkdir -p /data && chown node:node /data
 USER node
 CMD ["node", "bin/server.mjs"]
 
+# Optional Pi installation stays separate from the lightweight collaboration image.
+FROM ${NODE_IMAGE} AS pi-dependencies
+WORKDIR /opt/pi
+COPY runners/pi/package.json runners/pi/package-lock.json ./
+RUN npm ci --ignore-scripts --omit=dev --no-fund --no-audit
+COPY runners/pi/*.mjs ./
+
+FROM runtime AS runtime-pi
+COPY --from=pi-dependencies --chown=node:node /opt/pi ./runners/pi
+
+FROM compiled AS pi-test
+COPY --from=pi-dependencies /opt/pi ./runners/pi
+CMD ["node", "scripts/test-runner.mjs", "pi"]
+
 # Only used on the isolated CI network. Never publish/deploy this fixture as Hexu.
 FROM runtime AS ci-deployment-fixture
 COPY --chown=node:node ci/fixture-server.mjs ./ci/fixture-server.mjs

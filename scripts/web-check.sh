@@ -14,12 +14,13 @@ mkdir -p "$report" "$private"
 # All identities are short-lived synthetic CI data; directory is never an artifact.
 chmod 777 "$private"
 compose=(docker compose -p "$project" -f compose.web.ci.yaml)
+if [ "${HEXU_BROWSER_SUITE:-browser}" = piBrowser ]; then compose+=(-f compose.pi.ci.yaml); fi
 cleanup(){
   local status=$?
   trap - EXIT
   "${compose[@]}" logs --no-color app > "$report/server.log" 2>&1 || :
   if ! "${compose[@]}" down --volumes --remove-orphans > "$report/cleanup.log" 2>&1; then status=1; fi
-  rm -f "$private/accounts.json" "$private/seed.json" "$private/restart-session.json"
+  rm -f "$private/accounts.json" "$private/seed.json" "$private/restart-session.json" "$private/model.json" "$private/pi-key"
   printf '%s\n' "$status" > "$report/exit-code.txt"
   exit "$status"
 }
@@ -27,6 +28,10 @@ trap cleanup EXIT
 node --input-type=module -e 'import {randomBytes} from "node:crypto";import {writeFileSync} from "node:fs";writeFileSync("ci-results/web-private/accounts.json",JSON.stringify(Object.fromEntries(["owner","member","outsider"].map(n=>[n,randomBytes(24).toString("hex")]))),{mode:0o644});'
 "${compose[@]}" build app browser 2>&1 | tee "$report/build.log"
 "${compose[@]}" run --rm -T seed > "$report/seed.log" 2>&1
+if [ "${HEXU_BROWSER_SUITE:-browser}" = piBrowser ]; then
+  node --input-type=module -e 'import {writeFileSync} from "node:fs";writeFileSync("ci-results/web-private/pi-key","synthetic-ci-model-key",{mode:0o644});writeFileSync("ci-results/web-private/model.json",JSON.stringify({schema:1,model:"hexu-test-model",baseUrl:"http://model:9090/v1",allowInsecureHttp:true,apiKeyFile:"/run/hexu-pi/pi-key",maxConcurrent:2,dailyRequests:50,maxOutputTokens:128,timeoutMs:4000,maxInputChars:32000}),{mode:0o644});'
+  "${compose[@]}" up -d --wait --wait-timeout 60 model > "$report/model-startup.log" 2>&1
+fi
 "${compose[@]}" up -d --wait --wait-timeout 90 app > "$report/startup.log" 2>&1
 "${compose[@]}" run --rm -T browser 2>&1 | tee "$report/browser.log"
 node scripts/browser-report.mjs "$report/results.json"
@@ -38,4 +43,4 @@ node scripts/browser-report.mjs "$report/results.json"
   "${compose[@]}" up -d --force-recreate --wait --wait-timeout 90 app
   "${compose[@]}" run --rm -T check node /checks/restart.mjs verify
 } > "$report/restart.log" 2>&1
-node --input-type=module -e 'import {writeFileSync} from "node:fs";writeFileSync("ci-results/browser/evidence.json",JSON.stringify({source:process.env.HEXU_SOURCE_SHA,entry:"bin/server.mjs",browser:process.env.HEXU_BROWSER??"chromium",scope:"real-web-login-projects-members-comments-review; synthetic preloaded deliveries; no Pi/Host",restart:true,passed:true},null,2));'
+node --input-type=module -e 'import {writeFileSync} from "node:fs";writeFileSync("ci-results/browser/evidence.json",JSON.stringify({source:process.env.HEXU_SOURCE_SHA,entry:"bin/server.mjs",browser:process.env.HEXU_BROWSER??"chromium",scope:process.env.HEXU_BROWSER_SUITE==="piBrowser"?"real-web-and-pi; synthetic-model-only; no live model or development Host":"real-web-login-projects-members-comments-review; synthetic preloaded deliveries; no Pi/Host",restart:true,passed:true},null,2));'

@@ -4,4 +4,5 @@ COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY ci/playwright.config.mjs ci/playwright.config.mjs
 COPY test/browser test/browser
+COPY test/pi-browser test/pi-browser
 CMD ["npm", "run", "test:browser"]

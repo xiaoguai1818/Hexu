@@ -1,0 +1,27 @@
+# Overlay for actual Pi + actual Web + synthetic model endpoint; no paid credentials or project mounts.
+services:
+  app:
+    build:
+      target: runtime-pi
+    environment:
+      HEXU_PI_CONFIG: /run/hexu-pi/model.json
+    volumes:
+      - ./ci-results/web-private:/run/hexu-pi:ro
+    mem_limit: 1g
+  model:
+    image: hexu-web:${HEXU_CI_TAG:?unique tag required}
+    command: [node, /fixtures/model-server.mjs]
+    volumes:
+      - ./test/fixtures/model-server.mjs:/fixtures/model-server.mjs:ro
+    networks: [isolated]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:9090/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 1s
+      timeout: 2s
+      retries: 20
+  browser:
+    environment:
+      HEXU_BROWSER_SUITE: piBrowser

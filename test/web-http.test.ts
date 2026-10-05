@@ -6,11 +6,11 @@ import {tmpdir} from 'node:os';
 import {once} from 'node:events';
 import {createWebApp} from '../src/adapters/http/server.ts';
 
-async function setup(t:{after:(f:()=>Promise<void>)=>void}) {
-  const dir=mkdtempSync(join(tmpdir(),'hexu-http-'));const app=createWebApp({directory:dir,origin:'http://127.0.0.1:8080',allowInsecureHttp:true,webRoot:resolve('web')});
+async function setup(t:{after:(f:()=>Promise<void>)=>void},discussion?:Parameters<typeof createWebApp>[0]['discussion']) {
+  const dir=mkdtempSync(join(tmpdir(),'hexu-http-'));const app=createWebApp({directory:dir,origin:'http://127.0.0.1:8080',allowInsecureHttp:true,webRoot:resolve('web'),...(discussion?{discussion}:{})});
   await app.auth.provision('owner','Test only passphrase 2026');await app.auth.provision('member','Test only passphrase 2026');
   app.server.listen(0,'127.0.0.1');await once(app.server,'listening');const address=app.server.address();assert.ok(address&&typeof address!=='string');const base=`http://127.0.0.1:${address.port}`;
-  t.after(async()=>{await new Promise<void>((r,e)=>app.server.close(error=>error?e(error):r()));app.close();rmSync(dir,{recursive:true,force:true});});
+  t.after(async()=>{await new Promise<void>((r,e)=>app.server.close(error=>error?e(error):r()));await app.shutdown();rmSync(dir,{recursive:true,force:true});});
   async function request(path:string,method='GET',body?:unknown,cookie='',csrf='',extra:Record<string,string>={}) {
     const headers:Record<string,string>={Origin:'http://127.0.0.1:8080','Content-Type':'application/json',Cookie:cookie,'X-Hexu-CSRF':csrf,...extra};
     const result=await fetch(base+path,{method,headers,...(body===undefined?{}:{body:JSON.stringify(body)})});
@@ -66,4 +66,19 @@ test('web: static assets are served by an exact allowlist, never filesystem path
 test('web: unsafe/missing deployment origin is rejected before opening storage',()=>{
   for(const origin of ['', 'ftp://app', 'https://app/path','https://user:pass@app'])assert.throws(()=>createWebApp({directory:'/not-opened',origin,webRoot:'web'}));
   assert.throws(()=>createWebApp({directory:'/not-opened',origin:'http://app',webRoot:'web'}));
+});
+
+test('web discussion: accepted request returns its latest version and can immediately be canceled',async t=>{
+  const options={runtime:{identity:{provider:'approved',model:'test',version:'0.84.0'},respond(_input:unknown,signal:AbortSignal):Promise<{text:string;usage:{status:'not_reported'}}> {return new Promise((_r,reject)=>signal.addEventListener('abort',()=>reject(new Error('secret')),{once:true}));}},maxConcurrent:1,dailyLimit:1,timeoutMs:10000};
+  const f=await setup(t,options);
+  const session=JSON.parse((await f.request('/api/session','GET',undefined,f.cookie)).text);assert.equal(session.availability.discussion,true);
+  const p=JSON.parse((await f.request('/api/projects','POST',{name:'Pi test'},f.cookie,f.csrf)).text);
+  const task=JSON.parse((await f.request(`/api/projects/${p.id}/tasks`,'POST',{title:'discussion',reviewerId:p.ownerId},f.cookie,f.csrf)).text).task;
+  const accepted=await f.request(`/api/tasks/${task.id}/discuss`,'POST',{version:1,body:'question'},f.cookie,f.csrf);assert.equal(accepted.status,202);
+  const latest=JSON.parse(accepted.text).task;assert.equal(latest.version,f.app.tasks.get(p.ownerId,task.id).version);assert.equal(latest.runs[0].status,'running');
+  assert.throws(()=>f.app.close(),/Stop active discussions/);
+  const canceled=await f.request(`/api/tasks/${task.id}/cancel`,'POST',{version:latest.version},f.cookie,f.csrf);assert.equal(canceled.status,200);await f.app.discussion!.idle();
+  const end=f.app.tasks.get(p.ownerId,task.id);assert.equal(end.runs[0]!.status,'canceled');assert.equal(end.comments.length,1);
+  assert.equal((await f.request(`/api/tasks/${task.id}/discuss`,'POST',{version:end.version,body:'again'},f.cookie,f.csrf)).status,429);
+  assert.equal((await f.request(`/api/tasks/${task.id}/discuss`,'POST',{version:end.version,body:'q',model:'other'},f.cookie,f.csrf)).status,400);
 });

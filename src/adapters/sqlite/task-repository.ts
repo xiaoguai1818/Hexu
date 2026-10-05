@@ -53,6 +53,14 @@ export class SqliteTasks implements TaskRepository {
   list(projectId: string): Task[] {
     return this.db.prepare('SELECT * FROM tasks WHERE project_id=? ORDER BY id').all(projectId).map(row => this.decode(row));
   }
+  /** Internal startup recovery, not exposed as a cross-project HTTP listing. */
+  activeDiscussions():Task[] {
+    return this.db.prepare(`SELECT * FROM tasks WHERE EXISTS (
+      SELECT 1 FROM json_each(tasks.snapshot,'$.runs') AS r
+      WHERE json_extract(r.value,'$.kind')='discussion'
+        AND json_extract(r.value,'$.status') IN ('queued','running','cancel_requested')
+    )`).all().map(row=>this.decode(row));
+  }
   insert(task: Task): void {
     if (task.version !== 1) throw new DomainError('CONFLICT');
     assertTaskSnapshot(task);

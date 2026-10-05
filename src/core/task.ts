@@ -1,5 +1,6 @@
 import {DomainError} from './errors.ts';
 import type {Stage, StagePlan} from './stage-plan.ts';
+import type {RunModel,RunUsage} from './usage.ts';
 
 export type TaskState = 'discussing' | 'queued' | 'developing' | 'review' | 'done' | 'blocked' | 'canceled';
 export type RunStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'failed' | 'interrupted' | 'canceled';
@@ -24,7 +25,8 @@ export interface Run {
   finishedAt?: string;
   reason?: string;
   result?: RunResult;
-  usage: {status: 'not_reported'};
+  model?: RunModel;
+  usage: RunUsage;
 }
 export interface AuditEvent {type: string; actorId: string; at: string; reference: string}
 export interface Task {
